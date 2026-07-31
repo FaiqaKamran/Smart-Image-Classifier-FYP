@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+tf_venv/
+ai-model/best.pt
+ai-model/*.h5
+ai-model/*.tflite
+
+# Node
+node_modules/
+package-lock.json
+.env
+
+# React
+Frontend/my-app/node_modules/
+Frontend/my-app/build/
+
+# Backend
+Backend/node_modules/
+Backend/.env
+
+# IDE
+.vscode/
+.DS_Store
+Thumbs.db
