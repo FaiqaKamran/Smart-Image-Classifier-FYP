@@ -36,8 +36,12 @@ except Exception as e:
 
 # CLASS NAMES
 CLASS_NAMES = {
-    0: "Brown Spot",
-    1: "Healthy"
+    0: "Cotton Bacterial_Blighty",
+    1: "Cotton Healthy",
+    2: "Rice Brown_Spot",
+    3: "Rice Healthy",
+    4: "Wheat Healthy",
+    5: "Wheat Rust"
 }
 
 # ROUTES 
