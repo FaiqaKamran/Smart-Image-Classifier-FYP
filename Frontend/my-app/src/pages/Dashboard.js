@@ -124,6 +124,7 @@ export default function Dashboard() {
               <thead>
                 <tr>
                   <th>#</th>
+                  <th>Image</th>       
                   <th>Crop</th>
                   <th>Status</th>
                   <th>Confidence</th>
@@ -135,6 +136,23 @@ export default function Dashboard() {
                 {recent.map((item, idx) => (
                   <tr key={idx}>
                     <td>{idx + 1}</td>
+                    <td>
+                      {item.image ? (
+                        <img 
+                          src={item.image} 
+                          alt={item.crop} 
+                          style={{ 
+                            width: '50px', 
+                            height: '50px', 
+                            objectFit: 'cover', 
+                            borderRadius: '8px',
+                            border: '2px solid #e2e8f0'
+                          }} 
+                        />
+                      ) : (
+                        <span style={{ color: '#999', fontSize: '12px' }}>No Image</span>
+                      )}
+                    </td>
                     <td> {item.crop}</td>
                     <td>{getStatusBadge(item.status)}</td>
                     <td>{item.confidence || 'N/A'}</td>

@@ -5,10 +5,17 @@ import Result from "../models/ResultModel.js";
 export const predictImage = async (req, res) => {
   try {
     const { cropType } = req.body;
+    
+    //  Debug log
+    console.log(" Backend received cropType:", cropType);
+    
     const formData = new FormData();
     formData.append("image", req.file.buffer, req.file.originalname);
+    formData.append("cropType", cropType); 
+    
+    console.log(" Sending to Flask with cropType:", cropType);
 
-    //  CALL FLASK APP
+    // CALL FLASK APP
     const response = await axios.post(
       "http://localhost:5000/predict",  
       formData,

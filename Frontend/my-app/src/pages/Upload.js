@@ -5,6 +5,44 @@ import {
   FiBarChart2, FiArrowUp, FiX, FiSend 
 } from "react-icons/fi";
 
+//  Image compress function
+const compressImage = (file, callback) => {
+  const reader = new FileReader();
+  reader.onloadend = () => {
+    const img = new Image();
+    img.src = reader.result;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const MAX_SIZE = 250;
+      
+      let width = img.width;
+      let height = img.height;
+      
+      if (width > height) {
+        if (width > MAX_SIZE) {
+          height = (height * MAX_SIZE) / width;
+          width = MAX_SIZE;
+        }
+      } else {
+        if (height > MAX_SIZE) {
+          width = (width * MAX_SIZE) / height;
+          height = MAX_SIZE;
+        }
+      }
+      
+      canvas.width = width;
+      canvas.height = height;
+      
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      
+      const compressedBase64 = canvas.toDataURL('image/jpeg', 0.6);
+      callback(compressedBase64);
+    };
+  };
+  reader.readAsDataURL(file);
+};
+
 export default function Upload() {
   const navigate = useNavigate();
   const [file, setFile] = useState(null);
@@ -60,7 +98,6 @@ export default function Upload() {
       if (data.success) {
         const prediction = data.prediction;
         
-        // 🔥 FIX: Check if disease name contains 'Healthy'
         const isHealthy = prediction.disease && prediction.disease.toLowerCase().includes('healthy');
         
         const analysisResult = {
@@ -76,33 +113,53 @@ export default function Upload() {
           ]
         };
 
-        // Save to localStorage
-        const savedUploads = localStorage.getItem('cropUploads');
-        const allUploads = savedUploads ? JSON.parse(savedUploads) : [];
-        const newUpload = {
-          id: Date.now(),
-          crop: cropType,
-          status: analysisResult.status,
-          confidence: `${analysisResult.confidence}%`,
-          date: new Date().toLocaleDateString(),
-          time: new Date().toLocaleTimeString(),
-          reviewed: false,
-          disease: analysisResult.disease,
-          severity: analysisResult.severity,
-          message: analysisResult.message
-        };
-        allUploads.unshift(newUpload);
-        localStorage.setItem('cropUploads', JSON.stringify(allUploads));
-        window.dispatchEvent(new Event('newUploadAdded'));
+        //  Image compress karke save karein
+        compressImage(file, (compressedBase64) => {
+          const newUpload = {
+            id: Date.now(),
+            crop: cropType,
+            status: analysisResult.status,
+            confidence: `${analysisResult.confidence}%`,
+            date: new Date().toLocaleDateString(),
+            time: new Date().toLocaleTimeString(),
+            reviewed: false,
+            disease: analysisResult.disease,
+            severity: analysisResult.severity,
+            message: analysisResult.message,
+            image: compressedBase64
+          };
 
-        setResult(analysisResult);
+          try {
+            const savedUploads = localStorage.getItem('cropUploads');
+            let allUploads = savedUploads ? JSON.parse(savedUploads) : [];
+            
+            allUploads.unshift(newUpload);
+            if (allUploads.length > 5) {
+              allUploads = allUploads.slice(0, 5);
+            }
+            
+            localStorage.setItem('cropUploads', JSON.stringify(allUploads));
+            window.dispatchEvent(new Event('newUploadAdded'));
+            
+            setResult(analysisResult);
+          } catch (error) {
+            console.error("Storage error:", error);
+            // Storage full 
+            localStorage.removeItem('cropUploads');
+            localStorage.setItem('cropUploads', JSON.stringify([newUpload]));
+            setResult(analysisResult);
+          }
+          
+          setUploading(false);
+        });
+        
       } else {
         alert("Prediction failed: " + (data.error || "Unknown error"));
+        setUploading(false);
       }
     } catch (error) {
       console.error("Error:", error);
       alert("Network error. Please try again.");
-    } finally {
       setUploading(false);
     }
   };

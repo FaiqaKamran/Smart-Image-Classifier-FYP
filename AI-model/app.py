@@ -16,15 +16,14 @@ model_path = "best.pt"
 
 if not os.path.exists(model_path):
     print(f" Model not found: {model_path}")
-    print(" Please place best.pt in this folder")
     exit(1)
 
 try:
     from ultralytics import YOLO
     model = YOLO(model_path)
     print(" Model loaded successfully!")
+    print(f" Model classes: {model.names}")
     
-    # Test prediction
     test_img = np.zeros((480, 480, 3), dtype=np.uint8)
     test_result = model(test_img)
     print(" Model test prediction successful!")
@@ -34,17 +33,32 @@ except Exception as e:
     traceback.print_exc()
     exit(1)
 
-# CLASS NAMES
+#  GLOBAL CLASS NAMES
 CLASS_NAMES = {
-    0: "Cotton Bacterial_Blighty",
+    0: "Cotton Bacterial Blight",
     1: "Cotton Healthy",
-    2: "Rice Brown_Spot",
+    2: "Rice Brown Spot",
     3: "Rice Healthy",
     4: "Wheat Healthy",
     5: "Wheat Rust"
 }
 
-# ROUTES 
+#  CROP-WISE DISEASE NAMES (Override ke liye)
+CROP_DISEASE_MAP = {
+    "rice": {
+        "disease": "Rice Brown Spot",
+        "healthy": "Rice Healthy"
+    },
+    "cotton": {
+        "disease": "Cotton Bacterial Blight",
+        "healthy": "Cotton Healthy"
+    },
+    "wheat": {
+        "disease": "Wheat Rust",
+        "healthy": "Wheat Healthy"
+    }
+}
+
 @app.route('/')
 def home():
     return render_template('index.html')
@@ -52,7 +66,8 @@ def home():
 @app.route('/predict', methods=['POST'])
 def predict():
     try:
-        print("\n Prediction request received")
+        crop_type = request.form.get("cropType", "").lower().strip()
+        print(f"\n Crop Type: '{crop_type}'")
         
         if 'image' not in request.files:
             return jsonify({'error': 'No image uploaded'}), 400
@@ -66,7 +81,6 @@ def predict():
         img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
         
         if img is None:
-            # Try PIL fallback
             file.seek(0)
             img = Image.open(io.BytesIO(file.read()))
             img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
@@ -80,7 +94,7 @@ def predict():
         results = model(img)
         print(" Prediction complete!")
         
-        # Process results
+        #  Process detections
         detections = []
         for r in results:
             boxes = r.boxes
@@ -88,26 +102,47 @@ def predict():
                 for box in boxes:
                     cls = int(box.cls[0])
                     conf = float(box.conf[0])
+                    
                     class_name = CLASS_NAMES.get(cls, f"Class_{cls}")
+                    
+                    print(f"  Class {cls} → {class_name} ({conf:.2%})")
+                    
                     detections.append({
                         'class': class_name,
-                        'confidence': round(conf * 100, 2)
+                        'confidence': round(conf * 100, 2),
+                        'class_id': cls
                     })
         
         if detections:
-            # Return first detection 
             best = max(detections, key=lambda x: x['confidence'])
+            disease = best['class']
+            
+            #  CROP-WISE OVERRIDE
+            if crop_type in CROP_DISEASE_MAP:
+                crop_map = CROP_DISEASE_MAP[crop_type]
+                
+                # Healthy check
+                if "healthy" in disease.lower():
+                    disease = crop_map["healthy"]
+                else:
+                    # Agar disease ka naam crop se match nahi karta, toh override karein
+                    if crop_type not in disease.lower():
+                        disease = crop_map["disease"]
+                
+                print(f"  Override → {disease}")
+            
             return jsonify({
                 'success': True,
-                'disease': best['class'],
+                'disease': disease,
                 'confidence': best['confidence'],
-                'treatment': 'Consult local agricultural expert' if best['class'] != 'Healthy' else 'No treatment needed',
+                'treatment': get_treatment(disease),
                 'detections': detections
             })
         else:
+            default = f"{crop_type.title()} Healthy" if crop_type else "Healthy"
             return jsonify({
                 'success': True,
-                'disease': 'Healthy',
+                'disease': default,
                 'confidence': 95.0,
                 'treatment': 'No treatment needed',
                 'detections': []
@@ -116,10 +151,18 @@ def predict():
     except Exception as e:
         print(f" Error: {e}")
         traceback.print_exc()
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+def get_treatment(disease_name):
+    treatments = {
+        "Cotton Bacterial Blight": "Apply copper-based fungicide. Remove infected plants.",
+        "Cotton Healthy": "No treatment needed. Continue regular care.",
+        "Rice Brown Spot": "Apply Mancozeb fungicide. Improve field drainage.",
+        "Rice Healthy": "No treatment needed. Continue regular care.",
+        "Wheat Healthy": "No treatment needed. Continue regular care.",
+        "Wheat Rust": "Apply Tebuconazole fungicide. Practice crop rotation."
+    }
+    return treatments.get(disease_name, "Consult agricultural expert.")
 
 if __name__ == '__main__':
     print("\n" + "="*50)
